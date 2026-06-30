@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>TV Recovery Manager - Système de Paiement</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --primary: #667eea; --primary-dark: #764ba2;
+            --success: #43e97b; --danger: #f5576c;
+            --warning: #f5a623; --info: #00f2fe;
+            --dark: #2d3748; --light: #f8f9fa; --border: #e9ecef;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; color: var(--dark); }
+        .app { display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 280px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; overflow-y: auto; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); flex-shrink: 0; transition: transform 0.3s ease; }
+        .sidebar-header { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.2); display:flex; justify-content:space-between; align-items:center; }
+        .logo { font-size: 1.3em; font-weight: 700; margin-bottom: 5px; }
+        .version { font-size: 0.8em; opacity: 0.8; }
+        .sidebar-section { margin-bottom: 30px; }
+        .sidebar-title { font-size: 0.85em; text-transform: uppercase; opacity: 0.7; margin-bottom: 10px; letter-spacing: 1px; }
+        .nav-item { padding: 12px 15px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 12px; font-size: 0.95em; }
+        .nav-item:hover { background: rgba(255,255,255,0.1); transform: translateX(5px); }
+        .nav-item.active { background: rgba(255,255,255,0.25); font-weight: 600; }
+        .nav-item-icon { font-size: 1.3em; }
+        .user-profile { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-top: 20px; }
+        .user-info { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; font-size: 1.3em; }
+        .user-name { flex: 1; }
+        .user-name-text { font-weight: 600; font-size: 0.95em; }
+        .user-role { font-size: 0.8em; opacity: 0.8; }
+        .logout-btn { width: 100%; padding: 8px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: all 0.3s ease; }
+        .logout-btn:hover { background: rgba(255,255,255,0.3); }
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+        .topbar { background: white; padding: 20px 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+        .topbar-left { display:flex; align-items:center; gap: 15px; }
+        .menu-toggle { display: none; background: none; border: none; font-size: 1.6em; cursor: pointer; color: var(--dark); }
+        .topbar-title { font-size: 1.8em; font-weight: 700; color: var(--dark); }
+        .topbar-actions { display: flex; gap: 15px; align-items: center; }
+        .search-box { padding: 10px 15px; border: 1px solid var(--border); border-radius: 8px; width: 250px; font-size: 0.95em; }
+        .content { flex: 1; overflow-y: auto; padding: 30px; }
+        .screen { display: none; animation: fadeIn 0.3s ease-in; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card-title { font-size: 1.3em; font-weight: 700; margin-bottom: 15px; color: var(--dark); }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .kpi-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid; transition: transform 0.3s ease; }
+        .kpi-card:hover { transform: translateY(-5px); }
+        .kpi-card.primary { border-left-color: var(--primary); }
+        .kpi-card.success { border-left-color: var(--success); }
+        .kpi-card.danger { border-left-color: var(--danger); }
+        .kpi-card.warning { border-left-color: var(--warning); }
+        .kpi-icon { font-size: 2em; margin-bottom: 10px; }
+        .kpi-label { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+        .kpi-value { font-size: 1.8em; font-weight: 700; color: var(--dark); }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark); font-size: 0.95em; }
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95em; font-family: inherit; transition: all 0.3s ease; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 600; transition: all 0.3s ease; display: inline-block; text-decoration: none; text-align: center; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102,126,234,0.3); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-secondary { background: var(--light); color: var(--dark); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-block { width: 100%; margin-bottom: 10px; }
+        .btn-small { padding: 8px 16px; font-size: 0.85em; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+        th { background: var(--light); padding: 15px; text-align: left; font-weight: 700; color: var(--dark); border-bottom: 2px solid var(--border); }
+        td { padding: 12px 15px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: #f9fafb; }
+        .table-wrap { overflow-x: auto; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600; }
+        .badge-success { background: rgba(67,233,123,0.15); color: var(--success); }
+        .badge-danger { background: rgba(245,87,108,0.15); color: var(--danger); }
+        .badge-warning { background: rgba(245,166,35,0.15); color: var(--warning); }
+        .badge-info { background: rgba(0,242,254,0.15); color: var(--info); }
+        .login-container { display: flex; min-height: 100vh; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); align-items: center; justify-content: center; padding: 20px; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 400px; }
+        .login-header { text-align: center; margin-bottom: 30px; }
+        .login-logo { font-size: 2.5em; margin-bottom: 10px; }
+        .login-title { font-size: 1.8em; font-weight: 700; color: var(--dark); margin-bottom: 5px; }
+        .login-subtitle { color: #666; font-size: 0.95em; }
+        .login-error { color: var(--danger); background: rgba(245,87,108,0.1); border: 1px solid rgba(245,87,108,0.3); border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; font-size: 0.9em; display: none; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+        .modal.active { display: flex; animation: fadeIn 0.3s ease-in; }
+        .modal-content { background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; max-height: 90vh; overflow-y: auto; }
+        .modal-header { font-size: 1.5em; font-weight: 700; margin-bottom: 20px; color: var(--dark); }
+        .modal-close { position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
+        .alert { padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
+        .alert-success { background: rgba(67,233,123,0.15); color: var(--success); border-left: 4px solid var(--success); }
+        .alert-danger { background: rgba(245,87,108,0.15); color: var(--danger); border-left: 4px solid var(--danger); }
+        .alert-warning { background: rgba(245,166,35,0.15); color: var(--warning); border-left: 4px solid var(--warning); }
+        .alert-info { background: rgba(0,242,254,0.15); color: #0099bb; border-left: 4px solid var(--info); }
+        .alert-icon { font-size: 1.2em; }
+        .chart-container { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .chart-title { font-size: 1.1em; font-weight: 700; margin-bottom: 15px; color: var(--dark); }
+        .chart-bar { display: flex; align-items: center; margin-bottom: 15px; }
+        .chart-label { width: 120px; font-size: 0.9em; font-weight: 600; flex-shrink:0; }
+        .chart-progress { flex: 1; height: 30px; background: var(--light); border-radius: 6px; overflow: hidden; margin: 0 15px; }
+        .chart-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%); display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-weight: 600; font-size: 0.85em; width: 0%; transition: width 0.5s ease; }
+        .chart-value { width: 80px; text-align: right; font-weight: 700; color: var(--dark); flex-shrink:0; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 90; }
+        .sidebar-overlay.active { display: block; }
+        @media (max-width: 900px) {
+            .menu-toggle { display: block; }
+            .sidebar { position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); }
+            .main-content { width: 100%; }
+            .topbar { padding: 15px; }
+            .topbar-title { font-size: 1.2em; }
+            .search-box { width: 140px; }
+            .content { padding: 15px; }
+            .kpi-grid { grid-template-columns: 1fr; }
+            .login-box { padding: 30px 20px; }
+            table { font-size: 0.8em; }
+            th, td { padding: 8px 10px; }
+        }
+        .text-center { text-align: center; }
+        .mt-20 { margin-top: 20px; }
+        .mb-20 { margin-bottom: 20px; }
+        .d-flex { display: flex; }
+        .gap-10 { gap: 10px; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .text-muted { color: #999; font-size: 0.9em; }
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+        .currency { font-weight: 700; color: var(--primary); }
+    </style>
+</head>
+<body>
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <div class="login-logo">📱</div>
+                <h1 class="login-title">TV Recovery</h1>
+                <p class="login-subtitle">KHELCOM SERVICE — Système de Paiement</p>
+            </div>
+            <div id="loginError" class="login-error">Email ou code incorrect.</div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="votre@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Code de connexion</label>
+                    <input type="password" id="loginPassword" placeholder="Code" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Connexion</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="appContainer" class="app" style="display: none;">
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div>
+                    <div class="logo">📱 TV Recovery</div>
+                    <div class="version">KHELCOM SERVICE</div>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-title">Menu Principal</div>
+                <div class="nav-item" data-screen="dashboard" data-roles="ADMIN"><span class="nav-item-icon">📊</span><span>Dashboard</span></div>
+                <div class="nav-item" data-screen="payment" data-roles="ADMIN,AGENT"><span class="nav-item-icon">💳</span><span>Encaisser Paiement</span></div>
+                <div class="nav-item" data-screen="transactions" data-roles="ADMIN,AGENT"><span class="nav-item-icon">📝</span><span>Historique</span></div>
+                <div class="nav-item" data-screen="reports" data-roles="ADMIN"><span class="nav-item-icon">📈</span><span>Rapports</span></div>
+            </div>
+            <div class="sidebar-section" id="adminMenuSection">
+                <div class="sidebar-title">Admin</div>
+                <div class="nav-item" data-screen="clients" data-roles="ADMIN"><span class="nav-item-icon">👤</span><span>Clients / Abonnés</span></div>
+                <div class="nav-item" data-screen="settings" data-roles="ADMIN"><span class="nav-item-icon">⚙️</span><span>Paramètres</span></div>
+            </div>
+            <div class="user-profile">
+                <div class="user-info">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-name">
+                        <div class="user-name-text" id="userNameDisplay">Agent Collecteur</div>
+                        <div class="user-role" id="userRoleDisplay">Collecteur</div>
+                    </div>
+                </div>
+                <button class="logout-btn" onclick="logout()">Déconnexion</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="topbar">
+                <div class="topbar-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+                    <div class="topbar-title" id="screenTitle">Dashboard</div>
+                </div>
+                <div class="topbar-actions">
+                    <input type="text" class="search-box" id="searchBox" placeholder="Rechercher...">
+                    <span id="currentTime" style="font-weight: 600; color: var(--primary); white-space:nowrap;">--:--</span>
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- DASHBOARD (ADMIN) -->
+                <div class="screen active" id="dashboardScreen">
+                    <div class="kpi-grid">
+                        <div class="kpi-card primary">
+                            <div class="kpi-icon">💰</div>
+                            <div class="kpi-label">Encaissements Aujourd'hui</div>
+                            <div class="kpi-value" id="todayTotal">0 FCFA</div>
+                            <div class="text-muted" id="todayCount">0 transactions</div>
+                        </div>
+                        <div class="kpi-card success">
+                            <div class="kpi-icon">✓</div>
+                            <div class="kpi-label">Transactions Validées</div>
+                            <div class="kpi-value" id="validatedCount">0</div>
+                            <div class="text-muted">Ce mois</div>
+                        </div>
+                        <div class="kpi-card warning">
+                            <div class="kpi-icon">⏳</div>
+                            <div class="kpi-label">En Attente</div>
+                            <div class="kpi-value" id="pendingCount">0</div>
+                            <div class="text-muted">À valider</div>
+                        </div>
+                        <div class="kpi-card danger">
+                            <div class="kpi-icon">📊</div>
+                            <div class="kpi-label">Total Clients</div>
+                            <div class="kpi-value" id="limitInfo">0</div>
+                            <div class="text-muted">Abonnés enregistrés</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">📈 Répartition par Mode de Paiement</div>
+                        <div id="paymentChart"></div>
+                    </div>
+                </div>
+
+                <!-- PAYMENT -->
+                <div class="screen" id="paymentScreen">
+                    <div class="card">
+                        <div class="card-title">💳 Encaisser un Paiement</div>
+                        <div class="form-group">
+                            <label>Numéro d'Abonné</label>
+                            <input type="text" id="subscriberId" placeholder="Tapez le numéro ou le nom...">
+                            <div id="subscriberList" style="margin-top: 10px;"></div>
+                        </div>
+                        <div id="subscriberInfo" style="display: none; background: var(--light); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div class="flex-between mb-20">
+                                <div>
+                                    <div style="font-size: 0.85em; color: #666;">Nom du Client</div>
+                                    <div id="subscriberName" style="font-weight: 700; font-size: 1.2em;">--</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.85em; color: #666;">Montant Dû</div>
+                                    <div id="subscriberAmount" style="font-weight: 700; font-size: 1.2em; color: var(--danger);">0 FCFA</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.85em; color: #666;">Zone</div>
+                                    <div id="subscriberZone" style="font-weight: 700;">--</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Montant Encaissé</label>
+                            <input type="number" id="amountPaid" placeholder="Montant en FCFA" min="0" max="500000">
+                        </div>
+                        <div class="form-group">
+                            <label>Mode de Paiement</label>
+                            <select id="paymentMethod">
+                                <option value="">-- Sélectionner --</option>
+                                <option value="CASH">💵 Espèces</option>
+                                <option value="WAVE">📱 Wave</option>
+                                <option value="ORANGE_MONEY">🟠 Orange Money</option>
+                            </select>
+                        </div>
+                        <div id="waveOptions" style="display: none;">
+                            <div class="form-group">
+                                <label>Numéro Wave du Client</label>
+                                <input type="text" id="wavePhone" placeholder="+221 77 123 45 67">
+                            </div>
+                        </div>
+                        <div id="orangeOptions" style="display: none;">
+                            <div class="form-group">
+                                <label>Numéro Orange Money du Client</label>
+                                <input type="text" id="omPhone" placeholder="+221 78 123 45 67">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="paymentNotes" placeholder="Notes additionnelles..." rows="3"></textarea>
+                        </div>
+                        <button onclick="submitPayment()" class="btn btn-success btn-block" style="font-size: 1.1em; padding: 15px;">
+                            ✓ Valider le Paiement
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TRANSACTIONS -->
+                <div class="screen" id="transactionsScreen">
+                    <div class="card">
+                        <div class="card-title">📝 Historique des Transactions</div>
+                        <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date/Heure</th><th>Abonné</th><th>Montant</th>
+                                    <th>Mode</th><th>Statut</th><th>Référence</th><th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionsList"></tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REPORTS (ADMIN) -->
+                <div class="screen" id="reportsScreen">
+                    <div class="card">
+                        <div class="card-title">📈 Rapports & Statistiques</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                            <div style="background: var(--light); padding: 15px; border-radius: 8px;">
+                                <div style="color: #666; font-size: 0.9em; margin-bottom: 5px;">Total Encaissé</div>
+                                <div style="font-size: 1.8em; font-weight: 700; color: var(--primary);" id="totalEncaisse">0 FCFA</div>
+                            </div>
+                            <div style="background: var(--light); padding: 15px; border-radius: 8px;">
+                                <div style="color: #666; font-size: 0.9em; margin-bottom: 5px;">Nombre de Transactions</div>
+                                <div style="font-size: 1.8em; font-weight: 700; color: var(--success);" id="totalTransactions">0</div>
+                            </div>
+                            <div style="background: var(--light); padding: 15px; border-radius: 8px;">
+                                <div style="color: #666; font-size: 0.9em; margin-bottom: 5px;">Montant Moyen</div>
+                                <div style="font-size: 1.8em; font-weight: 700; color: var(--warning);" id="avgAmount">0 FCFA</div>
+                            </div>
+                        </div>
+                        <button onclick="exportReport()" class="btn btn-primary">📥 Exporter en PDF</button>
+                    </div>
+                </div>
+
+                <!-- CLIENTS (ADMIN) -->
+                <div class="screen" id="clientsScreen">
+                    <div class="card">
+                        <div class="flex-between mb-20">
+                            <div class="card-title">👤 Clients / Abonnés</div>
+                            <button class="btn btn-primary" onclick="openAddClientModal()">+ Ajouter Client</button>
+                        </div>
+                        <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Nom</th><th>Montant Dû</th><th>Zone</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="clientsList"></tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SETTINGS (ADMIN) -->
+                <div class="screen" id="settingsScreen">
+                    <div class="card">
+                        <div class="card-title">⚙️ Paramètres Système</div>
+                        <div style="background: var(--light); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h3 style="margin-bottom: 15px; font-weight: 700;">🔐 Comptes</h3>
+                            <p class="text-muted">Admin : cheikhcanalport@gmail.com</p>
+                            <p class="text-muted">Agent recouvrement : recouvrementport@gmail.com</p>
+                        </div>
+                        <div style="background: var(--light); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h3 style="margin-bottom: 15px; font-weight: 700;">🔄 Maintenance</h3>
+                            <button class="btn btn-secondary btn-block" onclick="clearCache()">🗑️ Vider le Cache des Transactions</button>
+                            <button class="btn btn-secondary btn-block mt-20" onclick="resetDemo()">🔄 Réinitialiser les Données</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL AJOUTER CLIENT -->
+    <div class="modal" id="addClientModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('addClientModal')">✕</button>
+            <div class="modal-header">Ajouter un Client</div>
+            <form id="addClientForm">
+                <div class="form-group"><label>ID Abonné</label><input type="text" id="newClientId" required></div>
+                <div class="form-group"><label>Nom Complet</label><input type="text" id="newClientName" required></div>
+                <div class="form-group"><label>Montant Dû (FCFA)</label><input type="number" id="newClientAmount" required></div>
+                <div class="form-group"><label>Zone</label><input type="text" id="newClientZone" required></div>
+                <button type="submit" class="btn btn-primary btn-block">Créer Client</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ── COMPTES (codes en dur, deux utilisateurs) ──────
+        const ACCOUNTS = [
+            { email: 'cheikhcanalport@gmail.com',     code: 'CITEPORT26', role: 'ADMIN', name: 'Admin Khelcom' },
+            { email: 'recouvrementport@gmail.com',    code: 'PORTCITE26', role: 'AGENT', name: 'Agent Recouvrement' }
+        ];
+        // ─────────────────────────────────────────────────
+
+        const app = {
+            currentUser: null,
+            transactions: [],
+            subscribers: []
+        };
+
+        function loadState() {
+            const savedTx = localStorage.getItem('transactions');
+            app.transactions = savedTx ? JSON.parse(savedTx) : [];
+            const savedSubs = localStorage.getItem('subscribers');
+            app.subscribers = savedSubs ? JSON.parse(savedSubs) : [
+                { id: 'SUB001', name: 'Mamadou Sall',  amount: 45000, zone: 'Dakar Centre' },
+                { id: 'SUB002', name: 'Fatou Ndiaye',  amount: 38000, zone: 'Pikine' },
+                { id: 'SUB003', name: 'Ousmane Ba',    amount: 52000, zone: 'Rufisque' },
+                { id: 'SUB004', name: 'Marie Camara',  amount: 41000, zone: 'Kaolack' },
+                { id: 'SUB005', name: 'Ahmed Diallo',  amount: 39000, zone: 'Kaolack' },
+            ];
+            if (!savedSubs) localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
+        }
+        loadState();
+
+        // LOGIN (vérification locale, sans Supabase)
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+            const code  = document.getElementById('loginPassword').value;
+            const errBox = document.getElementById('loginError');
+
+            const account = ACCOUNTS.find(a => a.email.toLowerCase() === email && a.code === code);
+            if (!account) {
+                errBox.textContent = 'Email ou code incorrect.';
+                errBox.style.display = 'block';
+                document.getElementById('loginPassword').value = '';
+                return;
+            }
+
+            app.currentUser = account;
+            errBox.style.display = 'none';
+            document.getElementById('userNameDisplay').textContent = account.name;
+            document.getElementById('userRoleDisplay').textContent = account.role === 'ADMIN' ? 'Administrateur' : 'Agent de Recouvrement';
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'flex';
+
+            applyRoleVisibility(account.role);
+
+            const firstScreen = account.role === 'ADMIN' ? 'dashboard' : 'payment';
+            switchScreen(firstScreen);
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelector(`.nav-item[data-screen="${firstScreen}"]`).classList.add('active');
+
+            updateClock();
+            setInterval(updateClock, 1000);
+        });
+
+        function applyRoleVisibility(role) {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                const roles = (item.getAttribute('data-roles') || '').split(',');
+                item.style.display = roles.includes(role) ? 'flex' : 'none';
+            });
+        }
+
+        // NAVIGATION
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const screen = item.getAttribute('data-screen');
+                switchScreen(screen);
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                toggleSidebar(false);
+            });
+        });
+
+        function toggleSidebar(force) {
+            const sb = document.getElementById('sidebar');
+            const ov = document.getElementById('sidebarOverlay');
+            const show = force !== undefined ? force : !sb.classList.contains('active');
+            sb.classList.toggle('active', show);
+            ov.classList.toggle('active', show);
+        }
+
+        function switchScreen(screenName) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenName + 'Screen').classList.add('active');
+            const titles = {
+                dashboard: '📊 Dashboard', payment: '💳 Encaisser Paiement',
+                transactions: '📝 Historique', reports: '📈 Rapports',
+                clients: '👤 Clients', settings: '⚙️ Paramètres'
+            };
+            document.getElementById('screenTitle').textContent = titles[screenName];
+            if (screenName === 'dashboard') loadDashboard();
+            if (screenName === 'transactions') loadTransactions();
+            if (screenName === 'reports') loadReports();
+            if (screenName === 'clients') loadClients();
+        }
+
+        document.getElementById('paymentMethod').addEventListener('change', (e) => {
+            document.getElementById('waveOptions').style.display   = e.target.value === 'WAVE'         ? 'block' : 'none';
+            document.getElementById('orangeOptions').style.display = e.target.value === 'ORANGE_MONEY' ? 'block' : 'none';
+        });
+
+        document.getElementById('subscriberId').addEventListener('input', (e) => {
+            const search = e.target.value.toLowerCase();
+            const list = app.subscribers.filter(s =>
+                s.id.toLowerCase().includes(search) || s.name.toLowerCase().includes(search)
+            );
+            document.getElementById('subscriberList').innerHTML = search
+                ? list.map(s =>
+                    `<div style="padding:10px;background:var(--light);border-radius:6px;cursor:pointer;margin-bottom:5px"
+                         onclick="selectSubscriber('${s.id}','${s.name.replace(/'/g, "\\'")}',${s.amount},'${s.zone.replace(/'/g, "\\'")}')">
+                        <strong>${s.id}</strong> - ${s.name} (${s.amount.toLocaleString()} FCFA)
+                     </div>`).join('')
+                : '';
+        });
+
+        function selectSubscriber(id, name, amount, zone) {
+            document.getElementById('subscriberId').value = id;
+            document.getElementById('subscriberList').innerHTML = '';
+            document.getElementById('subscriberInfo').style.display = 'block';
+            document.getElementById('subscriberName').textContent   = name;
+            document.getElementById('subscriberAmount').textContent = amount.toLocaleString() + ' FCFA';
+            document.getElementById('subscriberZone').textContent   = zone;
+            document.getElementById('amountPaid').value             = amount;
+        }
+
+        function submitPayment() {
+            const subscriberId = document.getElementById('subscriberId').value;
+            const amount       = parseFloat(document.getElementById('amountPaid').value);
+            const method       = document.getElementById('paymentMethod').value;
+            if (!subscriberId || !amount || !method) { alert('Veuillez remplir tous les champs'); return; }
+
+            const transaction = { id: 'TXN' + Date.now(), subscriberId, amount, method, date: new Date(), status: 'SUCCESS', agent: app.currentUser.name };
+            app.transactions.push(transaction);
+            localStorage.setItem('transactions', JSON.stringify(app.transactions));
+            showAlert('Paiement encaissé avec succès !', 'success');
+            document.getElementById('subscriberInfo').style.display = 'none';
+            document.getElementById('subscriberId').value  = '';
+            document.getElementById('amountPaid').value    = '';
+            document.getElementById('paymentMethod').value = '';
+            document.getElementById('waveOptions').style.display = 'none';
+            document.getElementById('orangeOptions').style.display = 'none';
+        }
+
+        function loadDashboard() {
+            const today = new Date().toDateString();
+            const todayTxns  = app.transactions.filter(t => new Date(t.date).toDateString() === today);
+            const todayTotal = todayTxns.reduce((s, t) => s + t.amount, 0);
+            document.getElementById('todayTotal').textContent   = todayTotal.toLocaleString() + ' FCFA';
+            document.getElementById('todayCount').textContent   = todayTxns.length + ' transactions';
+            document.getElementById('validatedCount').textContent = app.transactions.filter(t => t.status === 'SUCCESS').length;
+            document.getElementById('pendingCount').textContent   = app.transactions.filter(t => t.status === 'PENDING').length;
+            document.getElementById('limitInfo').textContent      = app.subscribers.length;
+
+            const methods = { CASH: 0, WAVE: 0, ORANGE_MONEY: 0 };
+            app.transactions.forEach(t => { if (methods[t.method] !== undefined) methods[t.method]++; });
+            const maxCount = Math.max(...Object.values(methods), 1);
+            const labels = { CASH: 'Espèces', WAVE: 'Wave', ORANGE_MONEY: 'Orange Money' };
+            document.getElementById('paymentChart').innerHTML = Object.entries(methods).map(([m, c]) =>
+                `<div class="chart-bar">
+                    <div class="chart-label">${labels[m]}</div>
+                    <div class="chart-progress"><div class="chart-bar-fill" style="width:${(c/maxCount)*100}%">${c}</div></div>
+                    <div class="chart-value">${c}</div>
+                 </div>`).join('');
+        }
+
+        function loadTransactions() {
+            const list = [...app.transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+            document.getElementById('transactionsList').innerHTML = list.map(t => `
+                <tr>
+                    <td>${new Date(t.date).toLocaleString('fr-FR')}</td>
+                    <td>${t.subscriberId}</td>
+                    <td><strong class="currency">${t.amount.toLocaleString()} FCFA</strong></td>
+                    <td><span class="badge badge-info">${t.method === 'CASH' ? 'Espèces' : t.method === 'WAVE' ? 'Wave' : 'Orange Money'}</span></td>
+                    <td><span class="badge badge-success">${t.status}</span></td>
+                    <td><code style="background:var(--light);padding:4px 8px;border-radius:4px;font-size:0.85em">${t.id}</code></td>
+                    <td>
+                        <button class="btn btn-small btn-primary" onclick="printReceipt('${t.id}')">📄 Reçu</button>
+                        <button class="btn btn-small btn-secondary" onclick="editTransaction('${t.id}')">✏️</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function editTransaction(id) {
+            const t = app.transactions.find(x => x.id === id);
+            if (!t) return;
+            const newAmount = prompt('Modifier le montant (FCFA) :', t.amount);
+            if (newAmount === null) return;
+            const val = parseFloat(newAmount);
+            if (isNaN(val) || val <= 0) { alert('Montant invalide'); return; }
+            t.amount = val;
+            localStorage.setItem('transactions', JSON.stringify(app.transactions));
+            loadTransactions();
+            showAlert('Transaction modifiée', 'success');
+        }
+
+        function loadReports() {
+            const total = app.transactions.reduce((s, t) => s + t.amount, 0);
+            document.getElementById('totalEncaisse').textContent    = total.toLocaleString() + ' FCFA';
+            document.getElementById('totalTransactions').textContent = app.transactions.length;
+            const avg = app.transactions.length > 0 ? Math.round(total / app.transactions.length) : 0;
+            document.getElementById('avgAmount').textContent = avg.toLocaleString() + ' FCFA';
+        }
+
+        function loadClients() {
+            document.getElementById('clientsList').innerHTML = app.subscribers.map(s => `
+                <tr>
+                    <td><strong>${s.id}</strong></td>
+                    <td>${s.name}</td>
+                    <td><span class="currency">${s.amount.toLocaleString()} FCFA</span></td>
+                    <td>${s.zone}</td>
+                    <td>
+                        <button class="btn btn-small btn-secondary" onclick="editClient('${s.id}')">✏️</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteClient('${s.id}')">🗑️</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function openAddClientModal() { document.getElementById('addClientModal').classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        document.getElementById('addClientForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('newClientId').value.trim();
+            const name = document.getElementById('newClientName').value.trim();
+            const amount = parseFloat(document.getElementById('newClientAmount').value);
+            const zone = document.getElementById('newClientZone').value.trim();
+            if (!id || !name || !amount || !zone) return;
+            if (app.subscribers.find(s => s.id === id)) { alert('Cet ID existe déjà'); return; }
+            app.subscribers.push({ id, name, amount, zone });
+            localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
+            closeModal('addClientModal');
+            document.getElementById('addClientForm').reset();
+            loadClients();
+            showAlert('Client ajouté avec succès', 'success');
+        });
+
+        function editClient(id) {
+            const s = app.subscribers.find(x => x.id === id);
+            if (!s) return;
+            const newName = prompt('Nom du client :', s.name);
+            if (newName === null) return;
+            const newAmount = prompt('Montant dû (FCFA) :', s.amount);
+            if (newAmount === null) return;
+            const newZone = prompt('Zone :', s.zone);
+            if (newZone === null) return;
+            s.name = newName.trim() || s.name;
+            s.amount = parseFloat(newAmount) || s.amount;
+            s.zone = newZone.trim() || s.zone;
+            localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
+            loadClients();
+            showAlert('Client modifié', 'success');
+        }
+
+        function deleteClient(id) {
+            if (!confirm('Supprimer ce client ?')) return;
+            app.subscribers = app.subscribers.filter(s => s.id !== id);
+            localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
+            loadClients();
+            showAlert('Client supprimé', 'success');
+        }
+
+        function printReceipt(id) {
+            const t = app.transactions.find(x => x.id === id);
+            if (t) alert(`Reçu #${id}\nMontant : ${t.amount.toLocaleString()} FCFA\nMode : ${t.method}`);
+        }
+
+        function exportReport() { alert('Rapport exporté en PDF 📥'); }
+
+        function logout() {
+            app.currentUser = null;
+            document.getElementById('appContainer').style.display = 'none';
+            document.getElementById('loginScreen').style.display  = 'flex';
+            document.getElementById('loginEmail').value    = '';
+            document.getElementById('loginPassword').value = '';
+        }
+
+        function showAlert(message, type) {
+            const el = document.createElement('div');
+            el.className = `alert alert-${type}`;
+            el.innerHTML = `<span class="alert-icon">${type === 'success' ? '✓' : '✕'}</span><span>${message}</span>`;
+            document.querySelector('.content').insertBefore(el, document.querySelector('.content').firstChild);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function clearCache() { app.transactions = []; localStorage.setItem('transactions', '[]'); loadTransactions(); alert('Cache des transactions vidé'); }
+        function resetDemo()  { localStorage.removeItem('transactions'); localStorage.removeItem('subscribers'); location.reload(); }
+
+        function updateClock() {
+            document.getElementById('currentTime').textContent =
+                new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        }
+    </script>
+</body>
+</html>
