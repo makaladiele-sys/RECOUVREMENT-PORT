@@ -4,6 +4,8 @@
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>TV Recovery Manager - Système de Paiement</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         :root {
@@ -130,11 +132,16 @@
         .text-success { color: var(--success); }
         .text-danger { color: var(--danger); }
         .currency { font-weight: 700; color: var(--primary); }
+        .qr-box { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; }
+        .qr-amount { font-size: 1.6em; font-weight: 800; color: var(--primary); margin: 10px 0; }
+        .qr-instructions { font-size: 0.9em; color: #666; line-height: 1.5; margin-top: 10px; }
+        .qr-canvas-wrap { display: flex; justify-content: center; margin: 15px 0; }
+        .merchant-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--light); padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <!-- LOGIN SCREEN -->
-    <div id="loginScreen" class="login-container" style="display: none;">
+    <div id="loginScreen" class="login-container" style="display: flex;">
         <div class="login-box">
             <div class="login-header">
                 <div class="login-logo">📱</div>
@@ -157,7 +164,7 @@
     </div>
 
     <!-- MAIN APP -->
-    <div id="appContainer" class="app" style="display: flex;">
+    <div id="appContainer" class="app" style="display: none;">
         <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -381,6 +388,11 @@
                                 <input type="text" id="omPhone" placeholder="+221 78 123 45 67">
                             </div>
                         </div>
+                        <div id="qrTriggerWrap" style="display: none; margin-bottom: 20px;">
+                            <button type="button" onclick="openQRModal()" class="btn btn-block" style="background: var(--info); color: var(--dark); font-weight: 700;">
+                                📲 Générer le QR Code de Paiement
+                            </button>
+                        </div>
                         <div class="form-group">
                             <label>Notes</label>
                             <textarea id="paymentNotes" placeholder="Notes additionnelles..." rows="3"></textarea>
@@ -601,6 +613,19 @@
                             <p class="text-muted">Agent recouvrement : recouvrementport@gmail.com</p>
                         </div>
                         <div style="background: var(--light); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h3 style="margin-bottom: 15px; font-weight: 700;">📲 Réception de Paiement par QR Code</h3>
+                            <p class="text-muted mb-20">Configurez vos identifiants marchands. Un QR Code sera généré automatiquement à l'écran d'encaissement pour que le client paie directement depuis son téléphone.</p>
+                            <div class="form-group">
+                                <label>Lien marchand Wave (ex: https://pay.wave.com/m/M_xxxxxxxx)</label>
+                                <input type="text" id="settingsWaveLink" placeholder="https://pay.wave.com/m/M_xxxxxxxx">
+                            </div>
+                            <div class="form-group">
+                                <label>Numéro marchand Orange Money</label>
+                                <input type="text" id="settingsOmNumber" placeholder="+221 77 123 45 67">
+                            </div>
+                            <button class="btn btn-primary btn-block" onclick="saveMerchantConfig()">💾 Enregistrer la Configuration</button>
+                        </div>
+                        <div style="background: var(--light); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                             <h3 style="margin-bottom: 15px; font-weight: 700;">🔄 Maintenance</h3>
                             <button class="btn btn-secondary btn-block" onclick="clearCache()">🗑️ Vider le Cache des Transactions</button>
                             <button class="btn btn-secondary btn-block mt-20" onclick="resetDemo()">🔄 Réinitialiser les Données</button>
@@ -611,7 +636,26 @@
         </div>
     </div>
 
-    <!-- MODAL AJOUTER CLIENT -->
+    <!-- MODAL REÇU APRÈS PAIEMENT -->
+    <div class="modal" id="paymentReceiptModal">
+        <div class="modal-content" style="max-width: 380px;">
+            <button class="modal-close" onclick="closeModal('paymentReceiptModal')">✕</button>
+            <div class="modal-header">✅ Paiement Encaissé</div>
+            <div id="receiptModalBody"></div>
+        </div>
+    </div>
+
+    <!-- MODAL QR CODE DE PAIEMENT -->
+    <div class="modal" id="qrPaymentModal">
+        <div class="modal-content" style="max-width: 380px;">
+            <button class="modal-close" onclick="closeModal('qrPaymentModal')">✕</button>
+            <div class="modal-header">📲 Paiement par QR Code</div>
+            <div id="qrModalBody"></div>
+            <button type="button" class="btn btn-secondary btn-block mt-20" onclick="closeModal('qrPaymentModal')">Fermer</button>
+        </div>
+    </div>
+
+
     <div class="modal" id="addClientModal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal(&#39;addClientModal&#39;)">✕</button>
@@ -619,6 +663,7 @@
             <form id="addClientForm">
                 <div class="form-group"><label>ID Abonné</label><input type="text" id="newClientId" required=""></div>
                 <div class="form-group"><label>Nom Complet</label><input type="text" id="newClientName" required=""></div>
+                <div class="form-group"><label>Téléphone (WhatsApp, ex: +221771234567)</label><input type="text" id="newClientPhone" placeholder="+221771234567"></div>
                 <div class="form-group"><label>Montant Dû (FCFA)</label><input type="number" id="newClientAmount" required=""></div>
                 <div class="form-group"><label>Zone</label><input type="text" id="newClientZone" required=""></div>
                 <button type="submit" class="btn btn-primary btn-block">Créer Client</button>
@@ -627,11 +672,10 @@
     </div>
 
     <script>
-        // ── COMPTES (codes en dur, deux utilisateurs) ──────
-        const ACCOUNTS = [
-            { email: 'cheikhcanalport@gmail.com',     code: 'CITEPORT26', role: 'ADMIN', name: 'Admin Khelcom' },
-            { email: 'recouvrementport@gmail.com',    code: 'PORTCITE26', role: 'AGENT', name: 'Agent Recouvrement' }
-        ];
+        // ── SUPABASE ────────────────────────────────────────
+        const SUPABASE_URL = 'https://xeerwmpowlcwdfhhbwez.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlZXJ3bXBvd2xjd2RmaGhid2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjkzNzUsImV4cCI6MjA5NzgwNTM3NX0.mJe6w6XY5NSacutxnLHtz3rQrbEFWORRe-45Nl2S92o';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         // ─────────────────────────────────────────────────
 
         const app = {
@@ -652,26 +696,131 @@
                 { id: 'SUB005', name: 'Ahmed Diallo',  amount: 39000, zone: 'Kaolack' },
             ];
             if (!savedSubs) localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
+            const savedMerchant = localStorage.getItem('merchantConfig');
+            app.merchantConfig = savedMerchant ? JSON.parse(savedMerchant) : { waveLink: '', omNumber: '' };
+            const waveInput = document.getElementById('settingsWaveLink');
+            const omInput   = document.getElementById('settingsOmNumber');
+            if (waveInput) waveInput.value = app.merchantConfig.waveLink || '';
+            if (omInput)   omInput.value   = app.merchantConfig.omNumber || '';
         }
         loadState();
 
-        // LOGIN (vérification locale, sans Supabase)
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
+        async function checkExistingSession() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            const { data: profile } = await supabaseClient
+                .from('app_users')
+                .select('role, name, email')
+                .eq('auth_id', session.user.id)
+                .single();
+            if (!profile) return;
+
+            const account = { email: profile.email, role: profile.role, name: profile.name || profile.email };
+            app.currentUser = account;
+            document.getElementById('userNameDisplay').textContent = account.name;
+            document.getElementById('userRoleDisplay').textContent = account.role === 'ADMIN' ? 'Administrateur' : 'Agent de Recouvrement';
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'flex';
+            applyRoleVisibility(account.role);
+            const firstScreen = account.role === 'ADMIN' ? 'dashboard' : 'payment';
+            switchScreen(firstScreen);
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelector(`.nav-item[data-screen="${firstScreen}"]`).classList.add('active');
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+        checkExistingSession();
+
+        // ── RÉCEPTION PAR QR CODE (Wave / Orange Money) ────
+        function saveMerchantConfig() {
+            const waveLink = document.getElementById('settingsWaveLink').value.trim();
+            const omNumber = document.getElementById('settingsOmNumber').value.trim();
+            app.merchantConfig = { waveLink, omNumber };
+            localStorage.setItem('merchantConfig', JSON.stringify(app.merchantConfig));
+            showAlert('Configuration QR Code enregistrée !', 'success');
+        }
+
+        function openQRModal() {
+            const method = document.getElementById('paymentMethod').value;
+            const amount = parseInt(document.getElementById('amountPaid').value, 10) || 0;
+            const name   = document.getElementById('subscriberName') ? document.getElementById('subscriberName').textContent : '--';
+            if (!amount) { showAlert('Veuillez indiquer le montant avant de générer le QR Code.', 'error'); return; }
+
+            const cfg = app.merchantConfig || {};
+            const box = document.getElementById('qrModalBody');
+            box.innerHTML = '';
+
+            if (method === 'WAVE') {
+                if (!cfg.waveLink) {
+                    box.innerHTML = '<p class="text-muted">Aucun lien marchand Wave configuré. Allez dans <b>Paramètres</b> pour l\'ajouter.</p>';
+                } else {
+                    let link = cfg.waveLink;
+                    link += (link.includes('?') ? '&' : '?') + 'amount=' + amount;
+                    box.innerHTML = `
+                        <div class="qr-box">
+                            <div class="merchant-badge">📱 Wave</div>
+                            <div class="qr-canvas-wrap" id="qrcodeCanvas"></div>
+                            <div class="qr-amount">${amount.toLocaleString()} FCFA</div>
+                            <div class="qr-instructions">Demandez au client de scanner ce code avec l'appareil photo ou l'app Wave.<br>Le montant est pré-rempli mais le client doit confirmer le paiement sur son téléphone.<br>Client : <b>${name}</b></div>
+                        </div>`;
+                    new QRCode(document.getElementById('qrcodeCanvas'), { text: link, width: 200, height: 200 });
+                }
+            } else if (method === 'ORANGE_MONEY') {
+                if (!cfg.omNumber) {
+                    box.innerHTML = '<p class="text-muted">Aucun numéro marchand Orange Money configuré. Allez dans <b>Paramètres</b> pour l\'ajouter.</p>';
+                } else {
+                    const text = `Paiement Orange Money\nMarchand: ${cfg.omNumber}\nMontant: ${amount} FCFA\nClient: ${name}`;
+                    box.innerHTML = `
+                        <div class="qr-box">
+                            <div class="merchant-badge">🟠 Orange Money</div>
+                            <div class="qr-canvas-wrap" id="qrcodeCanvas"></div>
+                            <div class="qr-amount">${amount.toLocaleString()} FCFA</div>
+                            <div class="qr-instructions">Orange Money n'a pas de lien de paiement universel scannable : ce QR encode le numéro marchand et le montant à titre de rappel. Demandez au client d'ouvrir son app Orange Money et de transférer manuellement vers <b>${cfg.omNumber}</b>.<br>Client : <b>${name}</b></div>
+                        </div>`;
+                    new QRCode(document.getElementById('qrcodeCanvas'), { text: text, width: 200, height: 200 });
+                }
+            }
+            document.getElementById('qrPaymentModal').classList.add('active');
+        }
+
+        // LOGIN (via Supabase Auth)
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const code  = document.getElementById('loginPassword').value;
             const errBox = document.getElementById('loginError');
+            const submitBtn = e.target.querySelector('button[type="submit"], .btn');
 
-            const account = ACCOUNTS.find(a => a.email.toLowerCase() === email && a.code === code);
-            if (!account) {
+            errBox.style.display = 'none';
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Connexion...'; }
+
+            const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({ email, password: code });
+
+            if (authError || !authData.user) {
                 errBox.textContent = 'Email ou code incorrect.';
                 errBox.style.display = 'block';
                 document.getElementById('loginPassword').value = '';
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Se connecter'; }
                 return;
             }
 
+            const { data: profile, error: profileError } = await supabaseClient
+                .from('app_users')
+                .select('role, name, email')
+                .eq('auth_id', authData.user.id)
+                .single();
+
+            if (profileError || !profile) {
+                errBox.textContent = "Compte authentifié mais aucun profil trouvé (contactez l'admin).";
+                errBox.style.display = 'block';
+                await supabaseClient.auth.signOut();
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Se connecter'; }
+                return;
+            }
+
+            const account = { email: profile.email, role: profile.role, name: profile.name || profile.email };
             app.currentUser = account;
-            errBox.style.display = 'none';
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Se connecter'; }
             document.getElementById('userNameDisplay').textContent = account.name;
             document.getElementById('userRoleDisplay').textContent = account.role === 'ADMIN' ? 'Administrateur' : 'Agent de Recouvrement';
             document.getElementById('loginScreen').style.display = 'none';
@@ -732,6 +881,7 @@
         document.getElementById('paymentMethod').addEventListener('change', (e) => {
             document.getElementById('waveOptions').style.display   = e.target.value === 'WAVE'         ? 'block' : 'none';
             document.getElementById('orangeOptions').style.display = e.target.value === 'ORANGE_MONEY' ? 'block' : 'none';
+            document.getElementById('qrTriggerWrap').style.display = (e.target.value === 'WAVE' || e.target.value === 'ORANGE_MONEY') ? 'block' : 'none';
         });
 
         document.getElementById('subscriberId').addEventListener('input', (e) => {
@@ -822,7 +972,6 @@
                 notes: document.getElementById('paymentNotes').value || '' };
             app.transactions.push(transaction);
             localStorage.setItem('transactions', JSON.stringify(app.transactions));
-            showAlert('Paiement encaissé avec succès !', 'success');
             document.getElementById('subscriberInfo').style.display = 'none';
             document.getElementById('subscriberId').value  = '';
             document.getElementById('amountPaid').value    = '';
@@ -830,6 +979,64 @@
             document.getElementById('paymentNotes').value  = '';
             document.getElementById('waveOptions').style.display = 'none';
             document.getElementById('orangeOptions').style.display = 'none';
+            document.getElementById('qrTriggerWrap').style.display = 'none';
+            showPaymentReceipt(transaction.id);
+        }
+
+        // ── REÇU AUTOMATIQUE + ENVOI WHATSAPP AU CLIENT ────
+        function formatPhoneForWhatsApp(raw) {
+            if (!raw) return '';
+            let digits = raw.replace(/[^\d]/g, '');
+            if (digits.startsWith('00')) digits = digits.slice(2);
+            if (digits.length === 9) digits = '221' + digits; // numéro local sénégalais sans indicatif
+            return digits;
+        }
+
+        function buildReceiptMessage(t, sub) {
+            const methodLabel = t.method === 'CASH' ? 'Espèces' : t.method === 'WAVE' ? 'Wave' : 'Orange Money';
+            const reste = sub ? getReste(sub) : null;
+            let msg = `✅ *Reçu de Paiement — KHELCOM SERVICE*\n\n`;
+            msg += `Référence : ${t.id}\n`;
+            msg += `Client : ${sub ? sub.name : t.subscriberId}\n`;
+            msg += `Montant payé : ${t.amount.toLocaleString()} FCFA\n`;
+            msg += `Mode : ${methodLabel}\n`;
+            msg += `Date : ${new Date(t.date).toLocaleString('fr-FR')}\n`;
+            if (reste !== null) msg += `Reste à payer : ${reste.toLocaleString()} FCFA\n`;
+            msg += `\nMerci pour votre confiance 🙏`;
+            return msg;
+        }
+
+        function showPaymentReceipt(transactionId) {
+            const t = app.transactions.find(x => x.id === transactionId);
+            if (!t) return;
+            const sub = app.subscribers.find(s => s.id === t.subscriberId);
+            const phoneKnown = sub && sub.phone;
+            const body = document.getElementById('receiptModalBody');
+            body.innerHTML = `
+                <p class="text-muted mb-20">Paiement de <b>${t.amount.toLocaleString()} FCFA</b> enregistré pour <b>${sub ? sub.name : t.subscriberId}</b>.</p>
+                ${!phoneKnown ? `
+                <div class="form-group">
+                    <label>Numéro WhatsApp du client (non enregistré)</label>
+                    <input type="text" id="receiptPhoneInput" placeholder="+221771234567">
+                </div>` : ''}
+                <button type="button" class="btn btn-block" style="background:#25D366; color:white; font-weight:700;" onclick="sendReceiptWhatsApp('${t.id}')">📤 Envoyer le Reçu par WhatsApp</button>
+                <button type="button" class="btn btn-secondary btn-block mt-20" onclick="printReceipt('${t.id}')">🖨️ Imprimer le Reçu</button>
+                <button type="button" class="btn btn-secondary btn-block mt-20" onclick="closeModal('paymentReceiptModal')">Fermer</button>
+            `;
+            document.getElementById('paymentReceiptModal').classList.add('active');
+        }
+
+        function sendReceiptWhatsApp(transactionId) {
+            const t = app.transactions.find(x => x.id === transactionId);
+            if (!t) return;
+            const sub = app.subscribers.find(s => s.id === t.subscriberId);
+            let rawPhone = sub && sub.phone ? sub.phone : (document.getElementById('receiptPhoneInput')?.value || '');
+            const phone = formatPhoneForWhatsApp(rawPhone);
+            if (!phone) { showAlert('Veuillez indiquer un numéro WhatsApp valide.', 'error'); return; }
+            // Mémorise le numéro saisi pour les prochains paiements de ce client
+            if (sub && !sub.phone) { sub.phone = rawPhone.trim(); localStorage.setItem('subscribers', JSON.stringify(app.subscribers)); }
+            const text = encodeURIComponent(buildReceiptMessage(t, sub));
+            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
         }
 
         function loadDashboard() {
@@ -1063,11 +1270,12 @@
             e.preventDefault();
             const id = document.getElementById('newClientId').value.trim();
             const name = document.getElementById('newClientName').value.trim();
+            const phone = document.getElementById('newClientPhone').value.trim();
             const amount = parseFloat(document.getElementById('newClientAmount').value);
             const zone = document.getElementById('newClientZone').value.trim();
             if (!id || !name || !amount || !zone) return;
             if (app.subscribers.find(s => s.id === id)) { alert('Cet ID existe déjà'); return; }
-            app.subscribers.push({ id, name, amount, zone });
+            app.subscribers.push({ id, name, phone, amount, zone });
             localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
             closeModal('addClientModal');
             document.getElementById('addClientForm').reset();
@@ -1080,11 +1288,14 @@
             if (!s) return;
             const newName = prompt('Nom du client :', s.name);
             if (newName === null) return;
+            const newPhone = prompt('Téléphone WhatsApp (ex: +221771234567) :', s.phone || '');
+            if (newPhone === null) return;
             const newAmount = prompt('Objectif / Montant dû total (FCFA) :', s.amount);
             if (newAmount === null) return;
             const newZone = prompt('Zone :', s.zone);
             if (newZone === null) return;
             s.name = newName.trim() || s.name;
+            s.phone = newPhone.trim();
             s.amount = parseFloat(newAmount) || s.amount;
             s.zone = newZone.trim() || s.zone;
             localStorage.setItem('subscribers', JSON.stringify(app.subscribers));
@@ -1164,7 +1375,8 @@
             showAlert('Rapport exporté en CSV 📥', 'success');
         }
 
-        function logout() {
+        async function logout() {
+            await supabaseClient.auth.signOut();
             app.currentUser = null;
             document.getElementById('appContainer').style.display = 'none';
             document.getElementById('loginScreen').style.display  = 'flex';
